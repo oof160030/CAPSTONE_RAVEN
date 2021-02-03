@@ -2,16 +2,28 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
+public enum PlayerState { IDLE, AERO, DYN, HIT };
+public enum ControlMode { KEYBOARD, CONTROLLER};
 //This Script handles player movement and reads controller inputs.
 public class P_Movement : MonoBehaviour
 {
     //Button management
+    public ControlMode mode;
     public bool jumpJustDown;
     public float jumpInput = 0;
 
+    public bool aeroJustDown, aeroJustUp;
+    public float aeroInput = 0;
+    public float aeroHold = 0;
+
+    //State Mechanics
+    public PlayerState myState = PlayerState.IDLE;
 
     //External Object Components
     private Rigidbody2D RB;
+    public GameObject bullet;
+    private LineRenderer LR;
+
     public float moveSpeed;
     public float moveAcc;
     public float hInput;
@@ -38,6 +50,10 @@ public class P_Movement : MonoBehaviour
     void Start()
     {
         RB = GetComponent<Rigidbody2D>();
+        myState = PlayerState.IDLE;
+        LR = GetComponent<LineRenderer>();
+        LR.startWidth = 0.5f;
+        LR.endWidth = 0.5f;
     }
 
     // Update is called once per frame
@@ -47,10 +63,17 @@ public class P_Movement : MonoBehaviour
         ReadInput();
         //Update player values
         CheckContact();
+        UpdateState();
 
-        //Update player movement (based on inputs)
-        MovePlayer();
-        Jump();
+        //Update player movement (based on inputs) if current state is idle
+        if (myState == PlayerState.IDLE)
+        {
+            MovePlayer();
+            Jump();
+        }
+        //If player is in attack state, use attack methods
+        else if (myState == PlayerState.AERO)
+            Attack();
     }
 
     //Moves player relative to time passed
@@ -126,6 +149,52 @@ public class P_Movement : MonoBehaviour
         }
     }
 
+    //Allow player to use attacks
+    public void Attack()
+    {
+        //Fire straight ahead if button was just pressed
+        if(aeroJustDown)
+        {
+            GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
+            if (facingRight)
+                b.GetComponent<Rigidbody2D>().AddForce(Vector2.right * 5, ForceMode2D.Impulse);
+            else
+                b.GetComponent<Rigidbody2D>().AddForce(Vector2.left * 5, ForceMode2D.Impulse);
+            Destroy(b, 5.0f);
+        }
+        //Let Player aim if aero button has been held for long enough (0.25 seconds)
+        else if(aeroHold > 0.25)
+        {
+            Vector2 aimDir = new Vector2();
+            //Calculate direction (based on Joystick for controller, or mouse position for keyboard)
+            switch (mode)
+            {
+                case ControlMode.CONTROLLER:
+                    aimDir = new Vector2(hInput, vInput);
+                    break;
+                case ControlMode.KEYBOARD:
+                    Vector2 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+                    aimDir = mousePos - RB.position;
+                    break;
+            }
+            aimDir = (aimDir.normalized * 2.0f);
+
+            //Draw a Line in the desired direction
+            Debug.DrawRay(RB.position, aimDir, Color.blue);
+            LR.enabled = true;
+            LR.SetPosition(0, RB.position);
+            LR.SetPosition(1, RB.position + aimDir);
+
+            //If the button was just released, fire in current direction
+            if (aeroJustUp)
+            {
+                GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
+                b.GetComponent<Rigidbody2D>().AddForce(aimDir * 5, ForceMode2D.Impulse);
+                Destroy(b, 5.0f);
+                LR.enabled = false;
+            }
+        }
+    }
     public void CheckContact()
     {
         //If a raycast touches the ground, set grounded to max value
@@ -146,35 +215,48 @@ public class P_Movement : MonoBehaviour
             grounded = Mathf.Clamp(grounded, 0, coyoteTime);
         }
     }
-
-    private void FixedUpdate()
+    public void UpdateState()
     {
-        //RB.MovePosition(RB.position + new Vector2(hInput,0) * moveSpeed * Time.deltaTime);
-    }
-
-    private void OnTriggerStay2D(Collider2D collision)
-    {
-        RB.velocity = new Vector2(moveSpeed*2, RB.velocity.y);
+        //If player is not in aero / dyn state, and the player is holding aero, set state
+        if (myState == PlayerState.IDLE && (aeroJustDown || aeroInput > 0))
+            myState = PlayerState.AERO;
+        //If plyer is not idling, and also not pressing any attack buttons
+        else if (myState != PlayerState.IDLE && aeroInput == 0 && !aeroJustUp)
+            myState = PlayerState.IDLE;
     }
 
     //Script Reads Player Inputs
     private void ReadInput()
     {
-        bool ZeroV = (jumpInput == 0);
+        bool ZeroJ = (jumpInput == 0);
+        bool ZeroA = (aeroInput == 0);
         
         hInput = Input.GetAxis("Horizontal");
         vInput = Input.GetAxis("Vertical");
         jumpInput = Input.GetAxis("Jump");
+        aeroInput = Input.GetAxis("Aero");
 
-        //If jump wasn't down prior, set it now
-        jumpJustDown = (jumpInput > 0 && ZeroV);
+        //Indicate if specific buttons were just pressed down or up
+        jumpJustDown = (jumpInput > 0 && ZeroJ);
 
+        aeroJustDown = (aeroInput > 0 && ZeroA);
+        aeroJustUp = (aeroInput == 0 && !ZeroA);
+        if (aeroInput > 0 || aeroJustUp)
+        {
+            aeroHold += Time.deltaTime;
+        }
+        else
+            aeroHold = 0;
+        Mathf.Clamp(aeroHold, 0, 5.0f);
+
+        //Reduce slide state (set in Jump) if player is sliding
         if (slide > 0)
         {
             slide -= Time.deltaTime;
             slide = Mathf.Clamp(slide, 0, 1);
         }
 
+        //Change which way the player is facing
         if ((facingRight && hInput < 0)|| (!facingRight && hInput > 0))
             facingRight = !facingRight;
     }
