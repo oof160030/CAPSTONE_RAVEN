@@ -7,37 +7,51 @@ public enum ControlMode { KEYBOARD, CONTROLLER};
 //This Script handles player movement and reads controller inputs.
 public class P_Movement : MonoBehaviour
 {
-    //Button management
+    //Button / Input management
+    [Header("Player Button / Input settings")]
     public ControlMode mode;
+    //Jump Button
     public bool jumpJustDown;
     public float jumpInput = 0;
-
+    public int jumpCost = 1;
+    //Aero Button
     public bool aeroJustDown, aeroJustUp;
     public float aeroInput = 0;
     public float aeroHold = 0;
+    //Breath Button
+    public bool breathJustDown, breathJustUp;
+    public float breathInput = 0;
+    public float breathHold = 0;
+    //LStick Axes
+    public float hInput;
+    public float vInput;
 
     //State Mechanics
     public PlayerState myState = PlayerState.IDLE;
 
-    //External Object Components
+    //External Object Components / references
+    [Header("Object components / references")]
+    public GameObject bullet; //Access bullets from an external list later
     private Rigidbody2D RB;
-    public GameObject bullet;
     private LineRenderer LR;
 
+    //Player physics controls
+    [Header("Player physics / Contact checks")]
     public float moveSpeed;
     public float moveAcc;
-    public float hInput;
-    public float vInput;
     public float jumpSpeed;
     public bool facingRight = true;
-
     //Ground / contact check
     public float groundCheckDist = 1.0f;
-    //
     public float grounded = 0.5f;
     public float coyoteTime = 0.5f;
     public LayerMask GroundLayer;
     public float slide = 0;
+
+    //Player resources
+    [Header("Player stats / resources")]
+    public float breath = 0;
+    public float maxBreath;
 
     //Draw debug raycasts
     private void OnDrawGizmos()
@@ -61,11 +75,12 @@ public class P_Movement : MonoBehaviour
     {
         //Read the Player Input
         ReadInput();
-        //Update player values
+
+        //Update Player status based on inputs
         CheckContact();
         UpdateState();
 
-        //Update player movement (based on inputs) if current state is idle
+        //Update player movement based on player status
         if (myState == PlayerState.IDLE)
         {
             MovePlayer();
@@ -74,6 +89,26 @@ public class P_Movement : MonoBehaviour
         //If player is in attack state, use attack methods
         else if (myState == PlayerState.AERO)
             Attack();
+
+        //Update breath based on status
+        UpdateBreath();
+    }
+
+    public void UpdateBreath()
+    {
+        //If on ground, allow player to update power
+        if (grounded == coyoteTime)
+        {
+            //Gain breath through charge
+            if (breathInput > 0)
+                breath += (Time.deltaTime * 2.0f);
+            else
+                breath += (Time.deltaTime * 0.5f);
+
+            if (jumpCost != 1)
+                jumpCost = 1;
+        }
+        breath = Mathf.Clamp(breath, 0, maxBreath);
     }
 
     //Moves player relative to time passed
@@ -119,8 +154,11 @@ public class P_Movement : MonoBehaviour
                 RB.AddForce(Vector2.up * jumpSpeed, ForceMode2D.Impulse);
             }
             //Air jump if not grounded
-            else if (grounded == 0)
+            else if (grounded == 0 && breath >= jumpCost)
             {
+                breath -= jumpCost;
+                jumpCost++;
+
                 grounded = -0.3f;
                 RB.velocity = new Vector2(RB.velocity.x, 0);
                 RB.AddForce(Vector2.up * jumpSpeed * 0.75f, ForceMode2D.Impulse);
@@ -155,12 +193,16 @@ public class P_Movement : MonoBehaviour
         //Fire straight ahead if button was just pressed
         if(aeroJustDown)
         {
-            GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
-            if (facingRight)
-                b.GetComponent<Rigidbody2D>().AddForce(Vector2.right * 5, ForceMode2D.Impulse);
-            else
-                b.GetComponent<Rigidbody2D>().AddForce(Vector2.left * 5, ForceMode2D.Impulse);
-            Destroy(b, 5.0f);
+            if(breath >= 0.5f)
+            {
+                GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
+                if (facingRight)
+                    b.GetComponent<Rigidbody2D>().AddForce(Vector2.right * 5, ForceMode2D.Impulse);
+                else
+                    b.GetComponent<Rigidbody2D>().AddForce(Vector2.left * 5, ForceMode2D.Impulse);
+                Destroy(b, 5.0f);
+                breath -= 0.5f;
+            }
         }
         //Let Player aim if aero button has been held for long enough (0.25 seconds)
         else if(aeroHold > 0.25)
@@ -188,9 +230,14 @@ public class P_Movement : MonoBehaviour
             //If the button was just released, fire in current direction
             if (aeroJustUp)
             {
-                GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
-                b.GetComponent<Rigidbody2D>().AddForce(aimDir * 5, ForceMode2D.Impulse);
-                Destroy(b, 5.0f);
+                if(breath >= 0.5f)
+                {
+                    GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
+                    b.GetComponent<Rigidbody2D>().AddForce(aimDir * 5, ForceMode2D.Impulse);
+                    Destroy(b, 5.0f);
+
+                    breath -= 0.5f;
+                }
                 LR.enabled = false;
             }
         }
@@ -230,13 +277,15 @@ public class P_Movement : MonoBehaviour
     {
         bool ZeroJ = (jumpInput == 0);
         bool ZeroA = (aeroInput == 0);
-        
+        bool ZeroB = (breathInput == 0);
+
         hInput = Input.GetAxis("Horizontal");
         vInput = Input.GetAxis("Vertical");
         jumpInput = Input.GetAxis("Jump");
         aeroInput = Input.GetAxis("Aero");
+        breathInput = Input.GetAxis("Breath");
 
-        //Indicate if specific buttons were just pressed down or up
+        #region //Indicate if specific buttons (Jump, Aero, Breath) were just pressed down or up
         jumpJustDown = (jumpInput > 0 && ZeroJ);
 
         aeroJustDown = (aeroInput > 0 && ZeroA);
@@ -248,6 +297,17 @@ public class P_Movement : MonoBehaviour
         else
             aeroHold = 0;
         Mathf.Clamp(aeroHold, 0, 5.0f);
+
+        breathJustDown = (breathInput > 0 && ZeroB);
+        breathJustUp = (breathInput == 0 && !ZeroB);
+        if (breathInput > 0 || breathJustUp)
+        {
+            breathHold += Time.deltaTime;
+        }
+        else
+            breathHold = 0;
+        Mathf.Clamp(breathHold, 0, 5.0f);
+        #endregion
 
         //Reduce slide state (set in Jump) if player is sliding
         if (slide > 0)

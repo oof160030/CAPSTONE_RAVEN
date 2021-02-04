@@ -460,19 +460,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 300c563afc8c34f478c5bbfad7372f37, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  mode: 1
+  mode: 0
   jumpJustDown: 0
   jumpInput: 0
+  jumpCost: 1
   aeroJustDown: 0
   aeroJustUp: 0
   aeroInput: 0
   aeroHold: 0
+  breathJustDown: 0
+  breathJustUp: 0
+  breathInput: 0
+  breathHold: 0
+  hInput: 0
+  vInput: 0
   myState: 0
   bullet: {fileID: 4914692546180241040, guid: 46d8a7baa72cb5b49b6fe4c4b319b8a1, type: 3}
   moveSpeed: 5
   moveAcc: 0.3
-  hInput: 0
-  vInput: 0
   jumpSpeed: 10
   facingRight: 1
   groundCheckDist: 0.6
@@ -482,6 +487,8 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   slide: 0
+  breath: 0
+  maxBreath: 4
 --- !u!120 &653823985
 LineRenderer:
   m_ObjectHideFlags: 0
