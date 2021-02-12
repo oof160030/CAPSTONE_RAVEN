@@ -468,6 +468,10 @@ MonoBehaviour:
   aeroJustUp: 0
   aeroInput: 0
   aeroHold: 0
+  dynJustDown: 0
+  dynJustUp: 0
+  dynInput: 0
+  dynHold: 0
   breathJustDown: 0
   breathJustUp: 0
   breathInput: 0
@@ -475,9 +479,15 @@ MonoBehaviour:
   blockJustUp: 0
   blockInput: 0
   blockHold: 0
+  dynNextDown: 0
+  dynPrevDown: 0
+  dynNextInput: 0
+  dynPrevInput: 0
   hInput: 0
   vInput: 0
   myState: 0
+  elementState: 0
+  maxElement: 0
   bullet: {fileID: 4914692546180241040, guid: 46d8a7baa72cb5b49b6fe4c4b319b8a1, type: 3}
   shield: {fileID: 7218084461087715877, guid: a24a312a672e3414884d4c9ccabc6426, type: 3}
   counter: {fileID: 8102818317959178333, guid: e921d4e809e00eb4a968b6819c6b66a9, type: 3}
@@ -492,7 +502,9 @@ MonoBehaviour:
     serializedVersion: 2
     m_Bits: 64
   slide: 0
-  breath: 0
+  VSpeedMax: 10
+  TornadoDynForce: 35
+  breath: 4
   maxBreath: 4
 --- !u!120 &653823985
 LineRenderer:

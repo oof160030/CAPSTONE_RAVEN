@@ -31,6 +31,10 @@ public class P_Movement : MonoBehaviour
     public bool blockJustUp;
     public float blockInput = 0;
     public float blockHold = 0;
+    //Dyn Switch Buttons
+    public bool dynNextDown, dynPrevDown;
+    public float dynNextInput = 0;
+    public float dynPrevInput = 0;
     //
     //LStick Axes
     public float hInput;
@@ -62,6 +66,10 @@ public class P_Movement : MonoBehaviour
     public float coyoteTime = 0.5f;
     public LayerMask GroundLayer;
     public float slide = 0;
+    //Dyn controls
+    public float VSpeedMax = 10;
+    public float TornadoDynForce = 2.0f;
+    public float dynTime = 0; //Multi-purpose variable for measuring dyn duration
 
     //Player resources
     [Header("Player stats / resources")]
@@ -101,6 +109,7 @@ public class P_Movement : MonoBehaviour
             case PlayerState.IDLE:
                 MovePlayer();
                 Jump();
+                ChangeDyn();
                 break;
             case PlayerState.AERO:
                 Attack();
@@ -119,7 +128,19 @@ public class P_Movement : MonoBehaviour
 
     private void FixedUpdate()
     {
-        
+        //Choose corresponding response to inputs based on current state
+        switch (myState)
+        {
+            case PlayerState.IDLE:
+                break;
+            case PlayerState.AERO:
+                break;
+            case PlayerState.DYN:
+                Dyn_Fixed();
+                break;
+            case PlayerState.BLOCK:
+                break;
+        }
     }
 
     //Update player movement (based on inputs)
@@ -252,14 +273,114 @@ public class P_Movement : MonoBehaviour
             }
         }
     }
+
+    //Player can switch their dyn ability 
+    public void ChangeDyn()
+    {
+        //If player presses one of the dyn buttons, can switch to new state
+        if (dynNextDown)
+        {
+            int value = (int)elementState;
+            value = (value + 1) % 4;
+            elementState = (DynElement)value;
+        }
+        if (dynPrevDown)
+        {
+            int value = (int)elementState;
+            value = (value - 1) % 4;
+            if (value == -1)
+                value = 3;
+            elementState = (DynElement)value;
+        }
+    }
+
+    //Dyn Abilities called in update (for instantaneuos / impulse motion)
+    //Also calls MovePlayer if the player can move horizontally during motion
     public void Dyn()
     {
         //Select next action based on dyn mode
         switch(elementState)
         {
+            //Allow player to move while rising
             case DynElement.AERO:
+                MovePlayer();
                 break;
+            //Burst upwards when releasing dyn, and also allow player to move
             case DynElement.HYDRO:
+                MovePlayer();
+                if (dynJustUp)
+                {
+                    RB.velocity = new Vector2(RB.velocity.x, 0);
+                    RB.AddForce(Vector2.up * jumpSpeed * 0.75f, ForceMode2D.Impulse);
+                }
+                break;
+            case DynElement.LITHO:
+                //Once button is pressed for first time, set time to 60 and lock gravity / position
+                if (dynTime > 0)
+                    dynTime -= Time.deltaTime;
+
+                if(dynJustDown && dynTime == 0 && breath >= 2)
+                {
+                    dynTime = 1;
+                    RB.velocity = Vector2.zero;
+                    RB.constraints = RigidbodyConstraints2D.FreezeAll;
+                    RB.gravityScale = 0;
+                    breath -= 2;
+                }
+                //Once time reaches 30, unlock constraints and launch player
+                else if(dynTime < 0.5f &&  dynTime > 0 && RB.constraints == RigidbodyConstraints2D.FreezeAll)
+                {
+                    RB.constraints = RigidbodyConstraints2D.FreezeRotation;
+                    Vector2 aimDir = new Vector2(hInput, vInput);
+                    aimDir = aimDir.normalized;
+                    RB.AddForce(aimDir * 10, ForceMode2D.Impulse);
+                }
+                else if(dynTime <= 0)
+                {
+                    RB.gravityScale = 2;
+                    dynTime = 0;
+                    LR.enabled = false;
+                }
+
+                if(dynTime > 0)
+                {
+                    Vector2 aimDir = new Vector2(hInput, vInput);
+                    aimDir = aimDir.normalized;
+                    //Draw a Line in the desired direction
+                    Debug.DrawRay(RB.position, aimDir, Color.blue);
+                    LR.enabled = true;
+                    LR.SetPosition(0, RB.position);
+                    LR.SetPosition(1, RB.position + aimDir);
+                }
+                break;
+            case DynElement.PYRO:
+                break;
+        }
+    }
+
+    //Dyn abilities called in fixed update (for non-impulse motion)
+    public void Dyn_Fixed()
+    {
+        //Select next action based on dyn mode
+        switch (elementState)
+        {
+            //If in air mode, accelerate up (capped by max rise speed)
+            case DynElement.AERO:
+                if(breath > 0)
+                {
+                    if(RB.velocity.y < VSpeedMax)
+                        RB.AddForce(Vector2.up * TornadoDynForce, ForceMode2D.Force);
+                    breath -= Time.deltaTime / 1.2f;
+                }
+                break;
+            //If in water mode, accelerate up (capped by max fall speed)
+            case DynElement.HYDRO:
+                if (breath > 0)
+                {
+                    if (RB.velocity.y < -VSpeedMax/10)
+                        RB.AddForce(Vector2.up * TornadoDynForce, ForceMode2D.Force);
+                    breath -= Time.deltaTime / 1.2f;
+                }
                 break;
             case DynElement.LITHO:
                 break;
@@ -300,6 +421,8 @@ public class P_Movement : MonoBehaviour
         bool ZeroD = (dynInput == 0);
         bool ZeroBr = (breathInput == 0);
         bool ZeroBl = (blockInput == 0);
+        bool ZeroDN = (dynNextInput == 0);
+        bool ZeroDP = (dynPrevInput == 0);
 
         hInput = Input.GetAxis("Horizontal");
         vInput = Input.GetAxis("Vertical");
@@ -308,6 +431,8 @@ public class P_Movement : MonoBehaviour
         dynInput = Input.GetAxis("Dyn");
         breathInput = Input.GetAxis("Breath");
         blockInput = Input.GetAxis("Block");
+        dynNextInput = Input.GetAxis("DynNext");
+        dynPrevInput = Input.GetAxis("DynPrev");
 
         #region //Indicate if specific buttons (Jump, Aero, Breath) were just pressed down or up
         jumpJustDown = (jumpInput > 0 && ZeroJ);
@@ -342,6 +467,9 @@ public class P_Movement : MonoBehaviour
         else
             blockHold = 0;
         Mathf.Clamp(blockHold, 0, 5.0f);
+
+        dynNextDown = (dynNextInput > 0 && ZeroDN);
+        dynPrevDown = (dynPrevInput > 0 && ZeroDP);
         #endregion
 
         //Reduce slide state (set in Jump) if player is sliding
@@ -377,12 +505,12 @@ public class P_Movement : MonoBehaviour
     }
     public void UpdateState()
     {
-        switch(myState)
+        switch (myState)
         {
             case PlayerState.IDLE:
                 if (aeroInput > 0)
                     myState = PlayerState.AERO;
-                else if (dynInput > 0)
+                else if (dynInput > 0 && breath > 0)
                     myState = PlayerState.DYN;
                 else if (blockInput > 0)
                     myState = PlayerState.BLOCK;
@@ -392,8 +520,13 @@ public class P_Movement : MonoBehaviour
                     myState = PlayerState.IDLE;
                 break;
             case PlayerState.DYN:
-                if (dynInput == 0 && !dynJustUp)
-                    myState = PlayerState.DYN;
+                if (elementState != DynElement.LITHO && dynInput == 0 && !dynJustUp)
+                    myState = PlayerState.IDLE;
+                else if (elementState == DynElement.LITHO && dynTime <= 0)
+                {
+                    dynTime = 0;
+                    myState = PlayerState.IDLE;
+                }
                 break;
             case PlayerState.BLOCK:
                 if (blockJustUp)
