@@ -70,11 +70,15 @@ public class P_Movement : MonoBehaviour
     public float VSpeedMax = 10;
     public float TornadoDynForce = 2.0f;
     public float dynTime = 0; //Multi-purpose variable for measuring dyn duration
+    public float fireMult;
+    public bool fireRecoil;
+    public float fireMax;
 
     //Player resources
     [Header("Player stats / resources")]
     public float breath = 0;
     public float maxBreath;
+    
 
     //Draw debug raycasts
     private void OnDrawGizmos()
@@ -314,6 +318,7 @@ public class P_Movement : MonoBehaviour
                     RB.AddForce(Vector2.up * jumpSpeed * 0.75f, ForceMode2D.Impulse);
                 }
                 break;
+            //Hold in place, then launch the player in the desired direction
             case DynElement.LITHO:
                 //Once button is pressed for first time, set time to 60 and lock gravity / position
                 if (dynTime > 0)
@@ -354,6 +359,56 @@ public class P_Movement : MonoBehaviour
                 }
                 break;
             case DynElement.PYRO:
+                //While holding down, allow the player to aim and slow gravity
+                Vector2 dir2 = new Vector2(hInput, vInput);
+                if (dynInput > 0 && dynTime <= breath && !fireRecoil)
+                {
+                    dynTime += Time.deltaTime * 2;
+                    dynTime = Mathf.Clamp(dynTime, 0, 5);
+                    
+                    RB.gravityScale = (RB.velocity.y > 0 ? 1:0.5f);
+
+                    //Draw a Line in the desired direction
+                    Vector2 dir3 = dir2.normalized * dynTime;
+                    Debug.DrawRay(RB.position, dir3, Color.red);
+                    LR.enabled = true;
+                    LR.SetPosition(0, RB.position);
+                    LR.SetPosition(1, RB.position + dir3);
+                }
+                //after releasing, launch the player in the opposite direction
+                else if (dynJustUp && dynTime <= breath && dynTime > 1 && !fireRecoil)
+                {
+                    dir2 = dir2.normalized;
+                    int fire = (int)dynTime;
+
+                    //Calculate travel speed
+                    Vector2 motion = RB.velocity;
+                    float fireSpeed = motion.magnitude + fire * fireMult;
+
+                    if (motion.magnitude >= fireMax)
+                        fireSpeed = motion.magnitude;
+                    else
+                        fireSpeed = Mathf.Clamp(fireSpeed,(motion.magnitude < fire*fireMult ? fire * fireMult :motion.magnitude),fireMax);
+
+                    //Set new motion
+                    RB.velocity = new Vector2(-dir2.x, -dir2.y) * fireSpeed;
+                    //RB.AddForce(-dir2 * fire * fireMult, ForceMode2D.Impulse);
+
+                    breath -= fire;
+                    //(Also spawn a fireball later
+                    RB.gravityScale = 2;
+                    dynTime = 0;
+                    LR.enabled = false;
+                    fireRecoil = true;
+                    Invoke("SetIdle", 0.5f);
+                }
+                //Emergency cancel - reset states
+                else
+                {
+                    RB.gravityScale = 2;
+                    dynTime = 0;
+                    LR.enabled = false;
+                }
                 break;
         }
     }
@@ -520,13 +575,18 @@ public class P_Movement : MonoBehaviour
                     myState = PlayerState.IDLE;
                 break;
             case PlayerState.DYN:
-                if (elementState != DynElement.LITHO && dynInput == 0 && !dynJustUp)
-                    myState = PlayerState.IDLE;
-                else if (elementState == DynElement.LITHO && dynTime <= 0)
+                if (elementState == DynElement.LITHO && dynTime <= 0)
                 {
                     dynTime = 0;
                     myState = PlayerState.IDLE;
                 }
+                else if (elementState == DynElement.PYRO && !fireRecoil && dynInput == 0 && !dynJustUp)
+                {
+                    dynTime = 0;
+                    myState = PlayerState.IDLE;
+                }
+                else if (elementState != DynElement.LITHO && elementState != DynElement.PYRO && dynInput == 0 && !dynJustUp)
+                    myState = PlayerState.IDLE;
                 break;
             case PlayerState.BLOCK:
                 if (blockJustUp)
@@ -538,6 +598,7 @@ public class P_Movement : MonoBehaviour
     public void SetIdle()
     {
         myState = PlayerState.IDLE;
+        fireRecoil = false;
     }
 
     public void UpdateBreath()

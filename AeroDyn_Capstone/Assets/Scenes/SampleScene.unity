@@ -504,8 +504,12 @@ MonoBehaviour:
   slide: 0
   VSpeedMax: 10
   TornadoDynForce: 35
-  breath: 4
-  maxBreath: 4
+  dynTime: 0
+  fireMult: 4.2
+  fireRecoil: 0
+  fireMax: 20
+  breath: 5
+  maxBreath: 5
 --- !u!120 &653823985
 LineRenderer:
   m_ObjectHideFlags: 0
