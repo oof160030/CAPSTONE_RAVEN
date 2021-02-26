@@ -1,0 +1,18 @@
+Script for my Devlog
+
+- Cover the game's concept
+ * Aerodyn - MEtroidvania with time / movement emphasis
+ * Free form combat and movement
+ * A bit of the story, gameplay, and aesthetic inspirations
+- Cover the work done so far
+ * Character Controller
+ * Concept art / sketches
+ * Player animation / sprites
+- Cover the difficulty I've encountered
+ * Momentum
+ * Snowed in
+ * Nailing down character design
+- Cover the next steps
+ * Level Mechanics
+ * Art assets
+ * Preparing for pre-alpha
