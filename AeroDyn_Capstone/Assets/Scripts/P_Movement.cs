@@ -12,33 +12,33 @@ public class P_Movement : MonoBehaviour
     [Header("Player Button / Input settings")]
     public ControlMode mode;
     //Jump Button
-    public bool jumpJustDown;
-    public float jumpInput = 0;
-    public int jumpCost = 1;
+    private bool jumpJustDown;
+    private float jumpInput = 0;
+    private int jumpCost = 1;
     //Aero Button
-    public bool aeroJustDown, aeroJustUp;
-    public float aeroInput = 0;
-    public float aeroHold = 0;
+    private bool aeroJustDown, aeroJustUp;
+    private float aeroInput = 0;
+    private float aeroHold = 0;
     //Dyn Button
-    public bool dynJustDown, dynJustUp;
-    public float dynInput = 0;
-    public float dynHold = 0;
+    private bool dynJustDown, dynJustUp;
+    private float dynInput = 0;
+    private float dynHold = 0;
     //Breath Button
-    public bool breathJustDown, breathJustUp;
-    public float breathInput = 0;
-    public float breathHold = 0;
+    private bool breathJustDown, breathJustUp;
+    private float breathInput = 0;
+    private float breathHold = 0;
     //Block Button
-    public bool blockJustUp;
-    public float blockInput = 0;
-    public float blockHold = 0;
+    private bool blockJustUp;
+    private float blockInput = 0;
+    private float blockHold = 0;
     //Dyn Switch Buttons
-    public bool dynNextDown, dynPrevDown;
-    public float dynNextInput = 0;
-    public float dynPrevInput = 0;
+    private bool dynNextDown, dynPrevDown;
+    private float dynNextInput = 0;
+    private float dynPrevInput = 0;
     //
     //LStick Axes
-    public float hInput;
-    public float vInput;
+    private float hInput;
+    private float vInput;
 
     //State Mechanics
     public PlayerState myState = PlayerState.IDLE;
@@ -78,6 +78,10 @@ public class P_Movement : MonoBehaviour
     [Header("Player stats / resources")]
     public float breath = 0;
     public float maxBreath;
+
+    //Platfomr movement?
+    public Vector3 platMove;
+    public Vector3 speed;
     
 
     //Draw debug raycasts
@@ -128,6 +132,8 @@ public class P_Movement : MonoBehaviour
 
         //Update breath based on status
         UpdateBreath();
+
+        speed = RB.velocity;
     }
 
     private void FixedUpdate()
@@ -145,6 +151,11 @@ public class P_Movement : MonoBehaviour
             case PlayerState.BLOCK:
                 break;
         }
+
+        //Move with platform
+        Vector3 saveVel = RB.velocity;
+        RB.transform.position += platMove;
+        platMove = Vector3.zero;
     }
 
     //Update player movement (based on inputs)

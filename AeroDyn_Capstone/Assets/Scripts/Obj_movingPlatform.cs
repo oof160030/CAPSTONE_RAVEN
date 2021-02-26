@@ -16,6 +16,10 @@ public class Obj_movingPlatform : MonoBehaviour
     private int targetNode = 0;
     private Vector2 targetPos, priorPos;
 
+    public Vector3 vel;
+
+    private LayerMask player;
+
     private void OnDrawGizmos()
     {
         //Add node objects if a list element is empty
@@ -35,6 +39,11 @@ public class Obj_movingPlatform : MonoBehaviour
             if (!nodes.Contains(child.gameObject) && gameObject != child.gameObject)
                 DestroyImmediate(child.gameObject);
         }
+
+        //Draw raycast test over layer
+        Gizmos.color = Color.green;
+        Vector2 top = transform.position + new Vector3(-transform.lossyScale.x/2, 0.05f + transform.lossyScale.y/2);
+        Gizmos.DrawLine(top, top + (Vector2.right) * transform.lossyScale.x);
     }
 
     void Start()
@@ -44,6 +53,8 @@ public class Obj_movingPlatform : MonoBehaviour
         targetPos = nodes[1].transform.position;
         priorPos = nodes[0].transform.position;
         targetNode = 1;
+
+        player = LayerMask.GetMask("Player");
     }
 
     // Update is called once per frame
@@ -81,7 +92,26 @@ public class Obj_movingPlatform : MonoBehaviour
         if (objActive && nodes.Count > 1)
         {
             currentTime += Time.deltaTime;
-            RB.MovePosition(Vector2.Lerp(priorPos, targetPos, (currentTime / timeToMove)));
+            Vector2 movePos = Vector2.Lerp(priorPos, targetPos, (currentTime / timeToMove));
+            Vector2 moveAbs = movePos - RB.position;
+            movePlayerWithMe(moveAbs);
+            RB.MovePosition(movePos);
+        }
+    }
+
+    private void movePlayerWithMe(Vector2 dir)
+    {
+        //Detect if the player is above me
+        //Start raycast from upper left
+
+        Vector2 top = transform.position + new Vector3(-transform.lossyScale.x / 2, 0.05f + transform.lossyScale.y / 2);
+        RaycastHit2D hitL = Physics2D.Raycast(top, Vector2.right, transform.lossyScale.x, player);
+
+        //If it is, move player same amount I have moved
+        if(hitL.collider != null)
+        {
+            P_Movement PlayRB = hitL.collider.gameObject.GetComponent<P_Movement>();
+            PlayRB.platMove = dir;
         }
     }
 
