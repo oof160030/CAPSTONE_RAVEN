@@ -4,6 +4,9 @@ using UnityEngine;
 
 public class Obj_movingPlatform : MonoBehaviour
 {
+    [SerializeField]
+    private bool isBooleanPlatform = false;
+    
     // Start is called before the first frame update
     public GameObject shell; //The parent object the platform and nodes are inside of
     public List<GameObject> nodes;
@@ -15,6 +18,8 @@ public class Obj_movingPlatform : MonoBehaviour
     private bool incrementing = true;
     private int targetNode = 0;
     private Vector2 targetPos, priorPos;
+
+    private float interpolate;
 
     public Vector3 vel;
 
@@ -60,7 +65,7 @@ public class Obj_movingPlatform : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        if(currentTime >= timeToMove)
+        if(!isBooleanPlatform && currentTime >= timeToMove)
         {
             currentTime = 0;
             //Change target position
@@ -88,11 +93,15 @@ public class Obj_movingPlatform : MonoBehaviour
 
     private void FixedUpdate()
     {
-        //Move platform if active and greater than 1
+        //Move non-boolean platform if active and greater than 1
         if (objActive && nodes.Count > 1)
         {
-            currentTime += Time.deltaTime;
-            Vector2 movePos = Vector2.Lerp(priorPos, targetPos, (currentTime / timeToMove));
+            if(!isBooleanPlatform)
+            {
+                currentTime += Time.deltaTime;
+                interpolate = currentTime / timeToMove;
+            }
+            Vector2 movePos = Vector2.Lerp(priorPos, targetPos, (interpolate));
             Vector2 moveAbs = movePos - RB.position;
             movePlayerWithMe(moveAbs);
             RB.MovePosition(movePos);
@@ -113,6 +122,11 @@ public class Obj_movingPlatform : MonoBehaviour
             P_Movement PlayRB = hitL.collider.gameObject.GetComponent<P_Movement>();
             PlayRB.platMove = dir;
         }
+    }
+
+    public void setInterpolation(float i)
+    {
+        interpolate = i;
     }
 
     public void activateObject()

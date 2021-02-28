@@ -6,6 +6,7 @@ TagManager:
   tags:
   - Ground
   - P_Projectile
+  - Hazard
   layers:
   - Default
   - TransparentFX

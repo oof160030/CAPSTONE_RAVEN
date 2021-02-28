@@ -21,6 +21,8 @@ public class Obj_crystal : MonoBehaviour
         if(collision.gameObject.CompareTag("P_Projectile"))
         {
             //Destroy the projectile
+            Destroy(collision.gameObject);
+
             //Play the activate effect (later)
             activeEffect();
             if(!objActivated)

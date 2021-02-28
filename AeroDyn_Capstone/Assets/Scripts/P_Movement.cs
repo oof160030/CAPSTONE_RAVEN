@@ -2,7 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-public enum PlayerState { IDLE, AERO, DYN, HIT, BLOCK };
+public enum PlayerState { IDLE, AERO, DYN, HIT, BLOCK, CHARGE };
 public enum ControlMode { KEYBOARD, CONTROLLER };
 public enum DynElement { AERO, HYDRO, LITHO, PYRO };
 //This Script handles player movement and reads controller inputs.
@@ -11,6 +11,7 @@ public class P_Movement : MonoBehaviour
     //Button / Input management
     [Header("Player Button / Input settings")]
     public ControlMode mode;
+    #region Button variables
     //Jump Button
     private bool jumpJustDown;
     private float jumpInput = 0;
@@ -39,6 +40,7 @@ public class P_Movement : MonoBehaviour
     //LStick Axes
     private float hInput;
     private float vInput;
+    #endregion
 
     //State Mechanics
     public PlayerState myState = PlayerState.IDLE;
@@ -60,6 +62,7 @@ public class P_Movement : MonoBehaviour
     public float moveAcc;
     public float jumpSpeed;
     public bool facingRight = true;
+    public float baseGravity = 2;
     //Ground / contact check
     public float groundCheckDist = 1.0f;
     public float grounded = 0.5f; //Is the player on the ground, or just walked off the ground? Also used for jump buffer
@@ -79,9 +82,12 @@ public class P_Movement : MonoBehaviour
     public float breath = 0;
     public float maxBreath;
 
-    //Platfomr movement?
+    //Platform movement
     public Vector3 platMove;
     public Vector3 speed;
+
+    //Health / Respawn system
+    private Vector2 spawn;
     
 
     //Draw debug raycasts
@@ -99,6 +105,10 @@ public class P_Movement : MonoBehaviour
         LR = GetComponent<LineRenderer>();
         LR.startWidth = 0.5f;
         LR.endWidth = 0.5f;
+
+        RB.gravityScale = baseGravity;
+
+        spawn = transform.position;
     }
 
     // Update is called once per frame
@@ -127,6 +137,12 @@ public class P_Movement : MonoBehaviour
                 break;
             case PlayerState.BLOCK:
                 Block();
+                break;
+            case PlayerState.CHARGE:
+                MovePlayer();
+                ChangeDyn();
+                if (grounded == coyoteTime)
+                    Jump();
                 break;
         }
 
@@ -214,9 +230,10 @@ public class P_Movement : MonoBehaviour
         else if(jumpJustDown && vInput < -0.3)
         {
             //Slide if grounded
-            if (grounded > 0)
+            if (grounded > 0 && breath >= 0.5f)
             {
-                grounded = -0.5f;
+                grounded = -0.2f;
+                breath -= 0.5f;
                 if(facingRight)
                     RB.AddForce(Vector2.right * jumpSpeed, ForceMode2D.Impulse);
                 else
@@ -242,10 +259,14 @@ public class P_Movement : MonoBehaviour
             if(breath >= 0.5f)
             {
                 GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
+                P_Bullet PB = b.GetComponent<P_Bullet>();
+                /*
                 if (facingRight)
                     b.GetComponent<Rigidbody2D>().AddForce(Vector2.right * 5, ForceMode2D.Impulse);
                 else
                     b.GetComponent<Rigidbody2D>().AddForce(Vector2.left * 5, ForceMode2D.Impulse);
+                */
+                PB.BulletStart(elementState, (facingRight ? Vector2.right : Vector2.left));
                 Destroy(b, 5.0f);
                 breath -= 0.5f;
             }
@@ -279,7 +300,9 @@ public class P_Movement : MonoBehaviour
                 if(breath >= 0.5f)
                 {
                     GameObject b = Instantiate(bullet, RB.position, Quaternion.identity);
-                    b.GetComponent<Rigidbody2D>().AddForce(aimDir * 5, ForceMode2D.Impulse);
+                    P_Bullet PB = b.GetComponent<P_Bullet>();
+                    PB.BulletStart(elementState, aimDir.normalized);
+
                     Destroy(b, 5.0f);
 
                     breath -= 0.5f;
@@ -349,11 +372,11 @@ public class P_Movement : MonoBehaviour
                     RB.constraints = RigidbodyConstraints2D.FreezeRotation;
                     Vector2 aimDir = new Vector2(hInput, vInput);
                     aimDir = aimDir.normalized;
-                    RB.AddForce(aimDir * 10, ForceMode2D.Impulse);
+                    RB.AddForce(aimDir * 20, ForceMode2D.Impulse);
                 }
                 else if(dynTime <= 0)
                 {
-                    RB.gravityScale = 2;
+                    RB.gravityScale = baseGravity;
                     dynTime = 0;
                     LR.enabled = false;
                 }
@@ -407,7 +430,7 @@ public class P_Movement : MonoBehaviour
 
                     breath -= fire;
                     //(Also spawn a fireball later
-                    RB.gravityScale = 2;
+                    RB.gravityScale = baseGravity;
                     dynTime = 0;
                     LR.enabled = false;
                     fireRecoil = true;
@@ -416,7 +439,7 @@ public class P_Movement : MonoBehaviour
                 //Emergency cancel - reset states
                 else
                 {
-                    RB.gravityScale = 2;
+                    RB.gravityScale = baseGravity;
                     dynTime = 0;
                     LR.enabled = false;
                 }
@@ -580,6 +603,8 @@ public class P_Movement : MonoBehaviour
                     myState = PlayerState.DYN;
                 else if (blockInput > 0)
                     myState = PlayerState.BLOCK;
+                else if (breathInput > 0)
+                    myState = PlayerState.CHARGE;
                 break;
             case PlayerState.AERO:
                 if (aeroInput == 0 && !aeroJustUp)
@@ -603,6 +628,16 @@ public class P_Movement : MonoBehaviour
                 if (blockJustUp)
                     Invoke("SetIdle", 0.5f);
                 break;
+            case PlayerState.CHARGE:
+                if (breathInput == 0)
+                    myState = PlayerState.IDLE;
+                else if (aeroInput > 0)
+                    myState = PlayerState.AERO;
+                else if (dynInput > 0 && breath > 0)
+                    myState = PlayerState.DYN;
+                else if (blockInput > 0)
+                    myState = PlayerState.BLOCK;
+                    break;
         }
     }
 
@@ -610,6 +645,17 @@ public class P_Movement : MonoBehaviour
     {
         myState = PlayerState.IDLE;
         fireRecoil = false;
+    }
+
+    //Basic respawn system
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if(collision.gameObject.CompareTag("Hazard"))
+        {
+            breath = maxBreath;
+            RB.velocity = Vector2.zero;
+            RB.transform.position = spawn;
+        }
     }
 
     public void UpdateBreath()
@@ -621,11 +667,20 @@ public class P_Movement : MonoBehaviour
             if (breathInput > 0)
                 breath += (Time.deltaTime * 2.0f);
             else
-                breath += (Time.deltaTime * 0.5f);
+                breath += (Time.deltaTime);
 
             if (jumpCost != 1)
                 jumpCost = 1;
         }
+        //If not grounded, can charge slowly in the air
+        else if (breathInput > 0)
+            breath += (Time.deltaTime * 0.75f);
+
         breath = Mathf.Clamp(breath, 0, maxBreath);
+    }
+
+    public void GainBreath(float gains)
+    {
+        breath = Mathf.Clamp(breath += gains, 0, maxBreath);
     }
 }
